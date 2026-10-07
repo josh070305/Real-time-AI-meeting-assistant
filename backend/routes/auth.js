@@ -1,30 +1,22 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import { JWT_SECRET } from '../config/env.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
-export const authMiddleware = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) {
-    return res.status(401).json({ error: 'No token provided' });
-  }
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.userId = decoded.id;
-    next();
-  } catch (error) {
-    res.status(401).json({ error: 'Invalid token' });
-  }
-};
-
+// ── Register ──────────────────────────────────────────────────────────────────
 router.post('/register', async (req, res) => {
   try {
     const { email, password, fullName } = req.body;
+
     if (!email || !password || !fullName) {
       return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
     }
 
     const existing = await User.findOne({ email });
@@ -36,15 +28,20 @@ router.post('/register', async (req, res) => {
     await user.save();
 
     const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
-    res.status(201).json({ token, user: { id: user._id, email: user.email, fullName: user.fullName } });
+    res.status(201).json({
+      token,
+      user: { id: user._id, email: user.email, fullName: user.fullName },
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
+// ── Login ─────────────────────────────────────────────────────────────────────
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
@@ -63,15 +60,20 @@ router.post('/login', async (req, res) => {
     await user.save();
 
     const token = jwt.sign({ id: user._id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { id: user._id, email: user.email, fullName: user.fullName } });
+    res.json({
+      token,
+      user: { id: user._id, email: user.email, fullName: user.fullName },
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
+// ── Profile ───────────────────────────────────────────────────────────────────
 router.get('/profile', authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.userId).select('-password');
+    if (!user) return res.status(404).json({ error: 'User not found' });
     res.json(user);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -98,11 +100,16 @@ router.patch('/profile', authMiddleware, async (req, res) => {
   }
 });
 
+// ── Password ──────────────────────────────────────────────────────────────────
 router.patch('/password', authMiddleware, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    const user = await User.findById(req.userId);
 
+    if (!newPassword || newPassword.length < 8) {
+      return res.status(400).json({ error: 'New password must be at least 8 characters' });
+    }
+
+    const user = await User.findById(req.userId);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -120,6 +127,7 @@ router.patch('/password', authMiddleware, async (req, res) => {
   }
 });
 
+// ── Account deletion ──────────────────────────────────────────────────────────
 router.delete('/account', authMiddleware, async (req, res) => {
   try {
     await User.findByIdAndDelete(req.userId);

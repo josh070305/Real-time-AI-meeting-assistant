@@ -5,23 +5,40 @@ import dotenv from 'dotenv';
 import { Server } from 'socket.io';
 import mongoose from 'mongoose';
 
+// Load .env before importing config/env.js so that process.env is populated
+dotenv.config({ path: new URL('../.env', import.meta.url) });
+
+// Validated env — will crash fast if any required var is missing
+import { PORT, MONGODB_URI, CORS_ORIGIN, JWT_SECRET } from './config/env.js';
+
 import meetingsRouter from './routes/meetings.js';
 import authRouter from './routes/auth.js';
 import { registerMeetingSocket } from './socket/meetingSocket.js';
-import { sendMeetingSummaryEmail } from './services/emailService.js';
-
-dotenv.config({ path: new URL('.env', import.meta.url) });
 
 const app = express();
 const server = http.createServer(app);
+
+// ── CORS ──────────────────────────────────────────────────────────────────────
+// Only allow the explicitly configured origin; '*' is never used.
+const corsOptions = {
+  origin: CORS_ORIGIN,
+  methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // pre-flight
+
+// ── Socket.io ─────────────────────────────────────────────────────────────────
 const io = new Server(server, {
   cors: {
-    origin: '*',
+    origin: CORS_ORIGIN,
     methods: ['GET', 'POST'],
+    credentials: true,
   },
 });
 
-app.use(cors());
 app.use(express.json());
 app.use('/api/auth', authRouter);
 app.use('/api/meetings', meetingsRouter);
@@ -30,15 +47,10 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, message: 'Meeting assistant backend is running.' });
 });
 
-registerMeetingSocket(io);
+// Pass the validated JWT_SECRET so the socket layer never uses a fallback
+registerMeetingSocket(io, JWT_SECRET);
 
-const PORT = process.env.PORT || 4000;
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/meeting-assistant';
-const HAS_GROQ_KEY = Boolean(process.env.GROQ_API_KEY);
-
-console.log(`Backend env loaded. MongoDB URI configured: ${Boolean(process.env.MONGODB_URI)}`);
-console.log(`Groq API key configured: ${HAS_GROQ_KEY}`);
-
+// ── MongoDB ───────────────────────────────────────────────────────────────────
 mongoose
   .connect(MONGODB_URI)
   .then(() => {
@@ -48,8 +60,7 @@ mongoose
     });
   })
   .catch((error) => {
-    console.error('MongoDB connection error:', error);
-    server.listen(PORT, () => {
-      console.log(`Server listening on http://localhost:${PORT} without MongoDB`);
-    });
+    // Fail fast — running without a DB causes confusing runtime errors later.
+    console.error('MongoDB connection failed. Shutting down.', error.message);
+    process.exit(1);
   });

@@ -1,24 +1,25 @@
 import nodemailer from 'nodemailer';
+import { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } from '../config/env.js';
 
 function createTransporter() {
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+  if (!SMTP_USER || !SMTP_PASS) {
     return null;
   }
 
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: Number(process.env.SMTP_PORT) || 587,
+    host: SMTP_HOST,
+    port: SMTP_PORT,
     secure: false,
     auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
+      user: SMTP_USER,
+      pass: SMTP_PASS,
     },
   });
 }
 
 export async function sendMeetingSummaryEmail({ to, subject, text, html }) {
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    console.log('Email not configured. Would send:', { to, subject });
+  if (!SMTP_USER || !SMTP_PASS) {
+    console.log('[emailService] SMTP not configured. Skipping send to:', to);
     return { ok: false, message: 'Email not configured' };
   }
 
@@ -39,7 +40,7 @@ export async function sendMeetingSummaryEmail({ to, subject, text, html }) {
 
     return { ok: true };
   } catch (error) {
-    console.error('Email send error:', error.message);
+    console.error('[emailService] Send error:', error.message);
     return { ok: false, error: error.message };
   }
 }

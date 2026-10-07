@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import TopBar from '../components/TopBar';
+import SidebarNav from '../components/SidebarNav';
+import VideoStage from '../components/VideoStage';
 import TranscriptPanel from '../components/TranscriptPanel';
 import InsightsPanel from '../components/InsightsPanel';
 import useMeetingStore from '../store/useMeetingStore';
@@ -28,24 +29,20 @@ export default function LiveMeeting() {
     insightsLoading,
     isListening,
     meetingDuration,
-    theme,
-    error,
     setSummary,
-    setView,
     stopMeeting,
     tickMeetingDuration,
-    toggleTheme,
     setInsightsLoading,
     currentMeetingId,
   } = useMeetingStore();
 
   const timerRef = useRef(null);
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState('insights'); // 'insights' | 'transcript'
+  const [highlightedSegmentId, setHighlightedSegmentId] = useState(null);
 
   useEffect(() => {
-    if (!isLive) {
-      return;
-    }
+    if (!isLive) return;
 
     timerRef.current = window.setInterval(() => {
       tickMeetingDuration();
@@ -62,27 +59,27 @@ export default function LiveMeeting() {
     }
   }, [isLive, currentMeetingId, joinMeeting]);
 
-  const handleTranscriptChunk = useCallback((text) => {
-    if (!text) {
-      return;
-    }
-
-    setInsightsLoading(true);
-    sendTranscriptChunk?.(text);
-  }, [sendTranscriptChunk, setInsightsLoading]);
+  const handleTranscriptChunk = useCallback(
+    (text) => {
+      if (!text) return;
+      setInsightsLoading(true);
+      sendTranscriptChunk?.(text);
+    },
+    [sendTranscriptChunk, setInsightsLoading]
+  );
 
   const { supported, startListening, stopListening } = useSpeechRecognition(handleTranscriptChunk);
 
   const onStop = async () => {
     const summaryPayload = {
       overview: 'Live meeting captured and summarized by the assistant.',
-      keyPoints: insights.key_points,
-      actionItems: insights.action_items,
-      decisions: insights.decisions,
+      keyPoints: insights.key_points || [],
+      actionItems: insights.action_items || [],
+      decisions: insights.decisions || [],
     };
 
     const meetingId = currentMeetingId || 'demo-meeting';
-    const transcriptText = transcript.map((entry) => `${entry.timestamp} — ${entry.text}`).join('\n');
+    const transcriptText = transcript.map((entry) => `${entry.timestamp || ''} — ${entry.text || entry}`).join('\n');
 
     stopListening();
 
@@ -97,7 +94,7 @@ export default function LiveMeeting() {
       setSaving(true);
       toast.loading('Saving meeting...', { id: 'saving-meeting' });
       const savedMeetingId = await stopMeetingSession?.(meetingId, transcriptText, summaryPayload, meetingDuration);
-      
+
       if (savedMeetingId) {
         toast.success('Meeting saved successfully', { id: 'saving-meeting' });
         setSummary(summaryPayload);
@@ -115,96 +112,110 @@ export default function LiveMeeting() {
 
   const durationLabel = useMemo(() => formatDuration(meetingDuration), [meetingDuration]);
 
-  const handleBackToDashboard = () => {
-    stopListening();
-    stopMeeting();
-    navigate('/');
+  const handleCopyLink = () => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url);
+    toast.success('Meeting link copied to clipboard!');
+  };
+
+  const latestTranscriptText = useMemo(() => {
+    if (transcript.length === 0) return '';
+    const last = transcript[transcript.length - 1];
+    return typeof last === 'string' ? last : last.text || '';
+  }, [transcript]);
+
+  const handleSeekSegment = (segmentId) => {
+    setActiveTab('transcript');
+    setHighlightedSegmentId(segmentId);
+    toast.success(`Seeking to segment ${segmentId}`);
   };
 
   return (
-    <div className="min-h-screen bg-dark-950">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-20 right-20 h-72 w-72 rounded-full bg-brand-600/10 blur-3xl" />
-        <div className="absolute top-1/2 -left-20 h-60 w-60 rounded-full bg-blue-600/10 blur-3xl" />
-      </div>
+    <div className="flex min-h-screen bg-dark-950 text-white font-sans antialiased overflow-x-hidden">
+      {/* Sidebar Navigation */}
+      <SidebarNav />
 
-      <main className="relative z-10 mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <TopBar
-            connected={connected}
-            duration={durationLabel}
-            isListening={isListening}
-            onStop={onStop}
-            onToggleMic={() => (isListening ? stopListening() : startListening())}
-            onToggleTheme={toggleTheme}
-            onBackToDashboard={handleBackToDashboard}
-            theme={theme}
-            saving={saving}
-          />
-        </motion.div>
+      {/* Main Studio Stage & Right Sidebar Grid */}
+      <main className="flex flex-1 gap-6 p-6 overflow-hidden">
+        {/* Central Realistic Video Stage */}
+        <VideoStage
+          isListening={isListening}
+          onToggleMic={() => (isListening ? stopListening() : startListening())}
+          duration={durationLabel}
+          interimText={interimText}
+          latestTranscriptText={latestTranscriptText}
+          onCopyLink={handleCopyLink}
+          meetingTitle="Weekly Product & AI Design Review"
+        />
 
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.1 }}
-          className="mb-6 rounded-2xl border border-brand-500/20 bg-gradient-to-r from-brand-500/10 to-blue-500/10 p-4 backdrop-blur-sm sm:p-5"
-        >
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-500/20">
-              <span className="text-xl">💡</span>
+        {/* Right Intelligence & Transcript Panel */}
+        <div className="flex w-96 flex-col gap-4">
+          {/* Header Bar with Action Buttons */}
+          <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-dark-900/90 p-2.5 backdrop-blur-xl">
+            <div className="flex gap-1 rounded-xl bg-white/5 p-1">
+              <button
+                onClick={() => setActiveTab('insights')}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                  activeTab === 'insights'
+                    ? 'bg-brand-500 text-white shadow-md'
+                    : 'text-dark-400 hover:text-white'
+                }`}
+              >
+                ✨ AI Insights
+              </button>
+              <button
+                onClick={() => setActiveTab('transcript')}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                  activeTab === 'transcript'
+                    ? 'bg-brand-500 text-white shadow-md'
+                    : 'text-dark-400 hover:text-white'
+                }`}
+              >
+                📜 Transcript
+              </button>
             </div>
-            <div>
-              <p className="font-semibold text-brand-200">Live meeting tips</p>
-              <ul className="mt-2 space-y-1 text-sm text-dark-300">
-                <li className="flex items-center gap-2">
-                  <span className="h-1 w-1 shrink-0 rounded-full bg-brand-400" />
-                  Click the mic button to start listening.
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="h-1 w-1 shrink-0 rounded-full bg-brand-400" />
-                  Allow microphone access in your browser prompt.
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="h-1 w-1 shrink-0 rounded-full bg-brand-400" />
-                  Speak clearly once the status says Listening…
-                </li>
-              </ul>
-            </div>
+
+            {/* End Call Button */}
+            <button
+              onClick={onStop}
+              disabled={saving}
+              className="flex items-center gap-1.5 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-lg shadow-rose-600/30 transition hover:bg-rose-700 disabled:opacity-50"
+            >
+              {saving ? (
+                <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+              ) : (
+                'End Meeting'
+              )}
+            </button>
           </div>
-        </motion.div>
 
-        {!supported ? (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6 rounded-2xl border border-warning-500/30 bg-warning-500/10 p-4 text-sm text-warning-200"
-          >
-            Your browser does not support live speech recognition. Please use Chrome for the full experience.
-          </motion.div>
-        ) : null}
-        {error ? (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6 rounded-2xl border border-error-500/30 bg-error-500/10 p-4 text-sm text-error-200"
-          >
-            {error}
-          </motion.div>
-        ) : null}
+          {!supported && (
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+              Browser speech recognition unavailable. Switch to Chrome for live mic input.
+            </div>
+          )}
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]"
-        >
-          <TranscriptPanel transcript={transcript} interimText={interimText} isListening={isListening} />
-          <InsightsPanel insights={insights} isLoading={insightsLoading} />
-        </motion.div>
+          {/* Active Panel View */}
+          <div className="flex-1 overflow-hidden">
+            {activeTab === 'insights' ? (
+              <InsightsPanel
+                insights={insights}
+                isLoading={insightsLoading}
+                onSeekSegment={handleSeekSegment}
+              />
+            ) : (
+              <TranscriptPanel
+                transcript={transcript}
+                interimText={interimText}
+                isListening={isListening}
+                highlightedSegmentId={highlightedSegmentId}
+              />
+            )}
+          </div>
+        </div>
       </main>
     </div>
   );

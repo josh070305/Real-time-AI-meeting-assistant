@@ -1,12 +1,38 @@
 import express from 'express';
 import Meeting from '../models/Meeting.js';
-import { authMiddleware } from './auth.js';
+import { authMiddleware } from '../middleware/auth.js';
 import { sendMeetingSummaryEmail } from '../services/emailService.js';
 
 const router = express.Router();
 
+// All meeting routes require authentication
 router.use(authMiddleware);
 
+/**
+ * Fields a client is allowed to set via PATCH.
+ * Explicitly whitelisted to prevent mass-assignment (e.g. overwriting userId).
+ */
+const ALLOWED_UPDATE_FIELDS = [
+  'title',
+  'description',
+  'transcript',
+  'summary',
+  'duration',
+  'durationSeconds',
+  'status',
+  'tags',
+  'participants',
+  'wordCount',
+  'sentiment',
+];
+
+function pickAllowedFields(body) {
+  return Object.fromEntries(
+    Object.entries(body).filter(([key]) => ALLOWED_UPDATE_FIELDS.includes(key))
+  );
+}
+
+// ── GET /api/meetings ─────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
     const { search, status, page = '1', limit = '20' } = req.query;
@@ -38,6 +64,7 @@ router.get('/', async (req, res) => {
   }
 });
 
+// ── GET /api/meetings/:id ─────────────────────────────────────────────────────
 router.get('/:id', async (req, res) => {
   try {
     const meeting = await Meeting.findOne({ _id: req.params.id, userId: req.userId });
@@ -52,24 +79,25 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// ── POST /api/meetings ────────────────────────────────────────────────────────
 router.post('/', async (req, res) => {
   try {
-    const meeting = await Meeting.create({
-      ...req.body,
-      userId: req.userId,
-    });
-
+    const data = pickAllowedFields(req.body);
+    const meeting = await Meeting.create({ ...data, userId: req.userId });
     res.status(201).json(meeting);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
+// ── PATCH /api/meetings/:id ───────────────────────────────────────────────────
 router.patch('/:id', async (req, res) => {
   try {
+    const updates = pickAllowedFields(req.body);
+
     const meeting = await Meeting.findOneAndUpdate(
       { _id: req.params.id, userId: req.userId },
-      req.body,
+      updates,
       { new: true }
     );
 
@@ -83,6 +111,7 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
+// ── DELETE /api/meetings/:id ──────────────────────────────────────────────────
 router.delete('/:id', async (req, res) => {
   try {
     const meeting = await Meeting.findOneAndDelete({ _id: req.params.id, userId: req.userId });
@@ -97,6 +126,7 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// ── POST /api/meetings/:id/share ──────────────────────────────────────────────
 router.post('/:id/share', async (req, res) => {
   try {
     const meeting = await Meeting.findOne({ _id: req.params.id, userId: req.userId });
@@ -111,9 +141,17 @@ router.post('/:id/share', async (req, res) => {
       return res.json({ shareable: true, meetingId: meeting._id, message: 'No email provided' });
     }
 
-    const summary = meeting.summary || {};
-    const summaryText = summary.overview
-      ? `Overview: ${summary.overview || 'N/A'}\n\nKey Points:\n${(summary.keyPoints || []).map((p) => `• ${p}`).join('\n') || 'None'}\n\nAction Items:\n${(summary.actionItems || []).map((a) => `• ${a.task || a}`).join('\n') || 'None'}\n\nDecisions:\n${(summary.decisions || []).map((d) => `• ${d}`).join('\n') || 'None'}`
+    const s = meeting.summary || {};
+    const summaryText = s.overview
+      ? [
+          `Overview: ${s.overview || 'N/A'}`,
+          '',
+          `Key Points:\n${(s.keyPoints || []).map((p) => `• ${p}`).join('\n') || 'None'}`,
+          '',
+          `Action Items:\n${(s.actionItems || []).map((a) => `• ${a.task || a}`).join('\n') || 'None'}`,
+          '',
+          `Decisions:\n${(s.decisions || []).map((d) => `• ${d}`).join('\n') || 'None'}`,
+        ].join('\n')
       : 'No summary available';
 
     const result = await sendMeetingSummaryEmail({

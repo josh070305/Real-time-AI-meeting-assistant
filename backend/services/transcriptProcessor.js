@@ -3,13 +3,15 @@ export function buildTranscriptBufferKey(socketId) {
 }
 
 export function appendToBuffer(buffer, text) {
-  if (!text) {
-    return buffer;
+  const cleanText = typeof text === 'string' ? text.trim() : '';
+  if (!cleanText) {
+    return typeof buffer === 'string' ? buffer.trim() : '';
   }
 
-  if (!buffer) {
-    return text;
+  const cleanBuffer = typeof buffer === 'string' ? buffer.trim() : '';
+  if (!cleanBuffer) {
+    return cleanText;
   }
 
-  return `${buffer}\n${text}`.trim();
+  return `${cleanBuffer}\n${cleanText}`;
 }
