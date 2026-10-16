@@ -10,8 +10,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
+// In local dev, load .env from the backend/ directory.
+// In Docker / Render production, env vars are injected by the platform — no .env file.
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config({ path: path.resolve(__dirname, '../.env') });
+}
 
 function require_env(name) {
   const value = process.env[name];

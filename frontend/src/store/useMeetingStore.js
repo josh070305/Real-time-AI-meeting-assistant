@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { API_URL } from '../lib/api';
 
 const initialInsights = {
   key_points: [],
@@ -36,7 +37,7 @@ const useMeetingStore = create((set, get) => ({
     set({ loadingMeetings: true, error: '' });
 
     try {
-      const res = await fetch('http://localhost:4000/api/meetings', {
+      const res = await fetch(`${API_URL}/api/meetings`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -70,7 +71,7 @@ const useMeetingStore = create((set, get) => ({
     if (!token) return null;
 
     try {
-      const res = await fetch('http://localhost:4000/api/meetings', {
+      const res = await fetch(`${API_URL}/api/meetings`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -97,7 +98,7 @@ const useMeetingStore = create((set, get) => ({
     if (!token) return false;
 
     try {
-      const res = await fetch(`http://localhost:4000/api/meetings/${meetingId}`, {
+      const res = await fetch(`${API_URL}/api/meetings/${meetingId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import { JWT_SECRET } from '../config/env.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { sendMeetingSummaryEmail } from '../services/emailService.js';
 
 const router = express.Router();
 
@@ -101,6 +102,45 @@ router.patch('/profile', authMiddleware, async (req, res) => {
 });
 
 // ── Password ──────────────────────────────────────────────────────────────────
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(200).json({
+        ok: true,
+        message: 'If an account exists for this email, a password reset email has been sent.',
+      });
+    }
+
+    const resetToken = jwt.sign({ id: user._id, purpose: 'password-reset' }, JWT_SECRET, { expiresIn: '1h' });
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
+    const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
+
+    const emailResult = await sendMeetingSummaryEmail({
+      to: user.email,
+      subject: 'Reset your MeetingAI password',
+      text: `Use this link to reset your password: ${resetLink}`,
+      html: `<p>Use this link to reset your password:</p><p><a href="${resetLink}">${resetLink}</a></p>`,
+    });
+
+    res.status(200).json({
+      ok: true,
+      message: emailResult.ok
+        ? 'Password reset email sent successfully.'
+        : 'Password reset is available in demo mode. Please contact support to complete the reset.',
+      resetLink: emailResult.ok ? resetLink : undefined,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.patch('/password', authMiddleware, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import useMeetingStore from '../store/useMeetingStore';
 import toast from 'react-hot-toast';
+import { API_URL } from '../lib/api';
 
 const StatCard = ({ label, value, icon, color }) => (
   <div className={`rounded-2xl bg-gradient-to-br ${color} p-6 shadow-lg`}>
@@ -25,7 +26,7 @@ export default function MeetingDetail() {
       setMeeting(found);
       setLoading(false);
     } else {
-      fetch(`http://localhost:4000/api/meetings/${id}`, {
+      fetch(`${API_URL}/api/meetings/${id}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       })
         .then((res) => {

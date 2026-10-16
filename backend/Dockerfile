@@ -1,39 +1,23 @@
-FROM node:22-alpine AS base
+FROM node:22-alpine
 
-# Install dependencies
-FROM base AS deps
-RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Copy package files
+# Copy package files first for layer caching
 COPY package*.json ./
-RUN npm ci --only=production
 
-# Build the application
-FROM base AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
+# Install production deps only
+RUN npm ci --omit=dev
+
+# Copy all source files
 COPY . .
-RUN npm run build
 
-# Production image
-FROM base AS runner
-WORKDIR /app
+# Run as the built-in non-root node user (uid 1000)
+USER node
 
-ENV NODE_ENV production
-
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nodejs
-
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/package.json ./package.json
-
-USER nodejs
+# Render sets PORT dynamically; default to 4000 for local docker runs
+ENV PORT=4000
+ENV NODE_ENV=production
 
 EXPOSE 4000
-
-ENV PORT 4000
 
 CMD ["node", "server.js"]

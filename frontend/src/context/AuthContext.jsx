@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
+import { API_URL } from '../lib/api';
 
 const AuthContext = createContext();
 
@@ -19,7 +20,7 @@ export function AuthProvider({ children }) {
         setUser(JSON.parse(savedUser));
 
         try {
-          const res = await fetch('http://localhost:4000/api/auth/profile', {
+          const res = await fetch(`${API_URL}/api/auth/profile`, {
             headers: { Authorization: `Bearer ${savedToken}` },
           });
 
@@ -43,7 +44,7 @@ export function AuthProvider({ children }) {
 
   const register = async (email, password, fullName) => {
     try {
-      const res = await fetch('http://localhost:4000/api/auth/register', {
+      const res = await fetch(`${API_URL}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, fullName }),
@@ -70,7 +71,7 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     try {
-      const res = await fetch('http://localhost:4000/api/auth/login', {
+      const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),

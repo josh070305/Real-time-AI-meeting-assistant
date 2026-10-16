@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { API_URL } from '../lib/api';
+import toast from 'react-hot-toast';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -23,6 +25,30 @@ export default function Login() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      toast.error('Enter your email first to request a password reset.');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Password reset failed');
+      }
+
+      toast.success(data.message || 'Password reset request sent.');
+    } catch (err) {
+      toast.error(err.message);
     }
   };
 
@@ -221,7 +247,11 @@ export default function Login() {
                 <input type="checkbox" className="h-4 w-4 rounded border-white/20 bg-white/5 text-brand-500 focus:ring-2 focus:ring-brand-500/20" />
                 <span className="text-sm text-dark-300">Remember me</span>
               </label>
-              <button type="button" className="text-sm font-medium text-brand-400 transition-colors duration-200 hover:text-brand-300">
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                className="text-sm font-medium text-brand-400 transition-colors duration-200 hover:text-brand-300"
+              >
                 Forgot password?
               </button>
             </motion.div>

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import useMeetingStore from '../store/useMeetingStore';
 import toast from 'react-hot-toast';
+import { API_URL } from '../lib/api';
 
 const SectionCard = ({ title, children, icon, delay }) => (
   <motion.div
@@ -38,7 +39,7 @@ export default function Summary() {
     }
 
     try {
-      const res = await fetch(`http://localhost:4000/api/meetings/${meetingId}/share`, {
+      const res = await fetch(`${API_URL}/api/meetings/${meetingId}/share`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

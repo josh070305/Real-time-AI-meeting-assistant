@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
+import { API_URL } from '../lib/api';
 
 export default function Profile() {
   const { user, token, logout } = useAuth();
@@ -16,7 +17,7 @@ export default function Profile() {
     setLoading(true);
 
     try {
-      const res = await fetch('http://localhost:4000/api/auth/profile', {
+      const res = await fetch(`${API_URL}/api/auth/profile`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -43,7 +44,7 @@ export default function Profile() {
     setLoading(true);
 
     try {
-      const res = await fetch('http://localhost:4000/api/auth/password', {
+      const res = await fetch(`${API_URL}/api/auth/password`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -73,7 +74,7 @@ export default function Profile() {
     }
 
     try {
-      const res = await fetch('http://localhost:4000/api/auth/account', {
+      const res = await fetch(`${API_URL}/api/auth/account`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

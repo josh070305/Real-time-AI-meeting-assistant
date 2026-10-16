@@ -1,14 +1,11 @@
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { Server } from 'socket.io';
 import mongoose from 'mongoose';
 
-// Load .env before importing config/env.js so that process.env is populated
-dotenv.config({ path: new URL('../.env', import.meta.url) });
-
 // Validated env — will crash fast if any required var is missing
+// dotenv is loaded inside config/env.js before any vars are read
 import { PORT, MONGODB_URI, CORS_ORIGIN, JWT_SECRET } from './config/env.js';
 
 import meetingsRouter from './routes/meetings.js';
@@ -18,10 +15,27 @@ import { registerMeetingSocket } from './socket/meetingSocket.js';
 const app = express();
 const server = http.createServer(app);
 
+const allowedOrigins = [
+  ...new Set(
+    [...(CORS_ORIGIN || '').split(',').map((origin) => origin.trim()).filter(Boolean), 'http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'],
+  ),
+];
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  return allowedOrigins.includes(origin) || /^http:\/\/localhost:\d+$/.test(origin) || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin);
+};
+
 // ── CORS ──────────────────────────────────────────────────────────────────────
-// Only allow the explicitly configured origin; '*' is never used.
 const corsOptions = {
-  origin: CORS_ORIGIN,
+  origin(origin, callback) {
+    if (isAllowedOrigin(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error('Not allowed by CORS'));
+  },
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
@@ -33,7 +47,14 @@ app.options('*', cors(corsOptions)); // pre-flight
 // ── Socket.io ─────────────────────────────────────────────────────────────────
 const io = new Server(server, {
   cors: {
-    origin: CORS_ORIGIN,
+    origin: (origin, callback) => {
+      if (isAllowedOrigin(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error('Not allowed by CORS'));
+    },
     methods: ['GET', 'POST'],
     credentials: true,
   },

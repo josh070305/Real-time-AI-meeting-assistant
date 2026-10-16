@@ -137,19 +137,61 @@ backend/
 
 ## 🚢 Deployment
 
-### Frontend (Vercel/Netlify)
-```bash
-cd frontend
-npm run build
-# Deploy dist/
+### 1) MongoDB Atlas
+Create a MongoDB Atlas cluster and copy the connection string.
+
+```env
+MONGODB_URI=mongodb+srv://<user>:<password>@cluster.mongodb.net/meeting-assistant
 ```
 
-### Backend (Render/Railway)
-- Use provided Dockerfile or `node server.js`
-- Set environment variables
-- Connect to MongoDB Atlas
+### 2) Backend deployment (Render)
+Use the included [render.yaml](render.yaml) file.
 
-### Docker
+1. Push this repo to GitHub.
+2. Create a new Render Web Service.
+3. Connect the repo.
+4. Use the following environment variables:
+
+```env
+NODE_ENV=production
+PORT=4000
+MONGODB_URI=mongodb+srv://<user>:<password>@cluster.mongodb.net/meeting-assistant
+GROQ_API_KEY=your_groq_api_key
+JWT_SECRET=generate_a_long_random_secret
+FRONTEND_URL=https://your-frontend-domain.com
+CORS_ORIGIN=https://your-frontend-domain.com
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your_email@gmail.com
+SMTP_PASS=your_app_password
+```
+
+5. Deploy the backend.
+
+### 3) Frontend deployment (Vercel)
+1. Import the frontend folder into Vercel.
+2. Set the build command to:
+
+```bash
+npm install && npm run build
+```
+
+3. Set the output directory to:
+
+```bash
+dist
+```
+
+4. Add the frontend environment variables:
+
+```env
+VITE_API_URL=https://your-render-backend-url.onrender.com
+VITE_SOCKET_URL=https://your-render-backend-url.onrender.com
+```
+
+The frontend also includes a [frontend/vercel.json](frontend/vercel.json) config to support client-side routing.
+
+### 4) Local Docker
 ```bash
 docker-compose up --build
 ```
